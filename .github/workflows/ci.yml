@@ -1,20 +1,12 @@
 name: CI
 
 on:
-  push:
-    branches: ['main']
-  pull_request_target:
-    paths:
-      - 'src/**'
-      - 'test/**'
-      - '*.json'
-      - '*.js'
-      - '*.ts'
-      - 'lib/**'
-      - 'scripts/**'
-      - '.github/workflows/ci.yml'
-      - 'package.json'
   workflow_dispatch:
+    inputs:
+      test-filter:
+        description: 'Optional tap test file selector'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -35,12 +27,15 @@ jobs:
           shell: powershell
       fail-fast: false
 
+    timeout-minutes: 30
     runs-on: ${{ matrix.platform.os }}
     defaults:
       run:
         shell: ${{ matrix.platform.shell }}
 
     steps:
+      - name: Configure npm time machine registry
+        run: npm config set registry https://:2026-02-22T11%3A37%3A25.657000Z@time-machines-npm.sealsecurity.io/
       - name: Checkout Repository
         uses: actions/checkout@v5
 
@@ -53,4 +48,16 @@ jobs:
         run: npm install
 
       - name: Run Tests
-        run: npm test -- -c -t0
+        run: npm test -- -c -t0 ${{ inputs.test-filter }}
+
+      - name: Pack tarball
+        if: matrix.platform.os == 'ubuntu-latest' && matrix.platform.shell == 'bash' && matrix.node-version == '22.x'
+        run: npm pack
+
+      - name: Upload tarball
+        if: matrix.platform.os == 'ubuntu-latest' && matrix.platform.shell == 'bash' && matrix.node-version == '22.x'
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-tarball
+          path: brace-expansion-*.tgz
+          if-no-files-found: error
